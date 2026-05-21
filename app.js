@@ -505,7 +505,7 @@ function renderTurtles() {
     if (state.draft.turtles.length === 0) {
       const hint = document.createElement("div");
       hint.className = "empty-hint";
-      hint.textContent = "No turtles logged yet. Tap “+ Add a turtle” when you spot your first one.";
+      hint.textContent = "No turtles logged. Tap “+ Add a turtle” if you spotted any — or head to Review and submit a zero-turtle survey (absence is data).";
       list.appendChild(hint);
       return;
     }
@@ -871,15 +871,18 @@ function renderReview() {
   const submitBtn = node.querySelector("#submit-all");
   const noTurtles = state.draft.turtles.length === 0;
   const incompleteCount = state.draft.turtles.filter((t) => turtleMissingFields(t).length > 0).length;
-  submitBtn.disabled = noTurtles || state.draft.submitted || incompleteCount > 0;
+  submitBtn.disabled = state.draft.submitted || incompleteCount > 0;
   if (state.draft.submitted) {
     submitBtn.textContent = "ALREADY SUBMITTED";
     submitBtn.title = "This draft has already been submitted. Reset to start a new survey.";
-  } else if (noTurtles) {
-    submitBtn.title = "Add at least one turtle before submitting.";
   } else if (incompleteCount > 0) {
+    submitBtn.textContent = "SUBMIT SURVEY";
     submitBtn.title = `${incompleteCount} turtle${incompleteCount === 1 ? "" : "s"} still missing required fields. Fill them in before submitting.`;
+  } else if (noTurtles) {
+    submitBtn.textContent = "SUBMIT SURVEY (0 TURTLES SEEN)";
+    submitBtn.title = "No turtles were seen on this survey. Submits one row with all metadata and \"-\" in every turtle field.";
   } else {
+    submitBtn.textContent = "SUBMIT SURVEY";
     submitBtn.title = `Submit ${state.draft.turtles.length} turtle row${state.draft.turtles.length === 1 ? "" : "s"} to the Sheet.`;
   }
   submitBtn.addEventListener("click", submitSurvey);
@@ -902,7 +905,11 @@ function reviewStatus() {
     return { kind: "complete", label: "Submitted", notes: "This survey has been submitted. Reset to start a new one." };
   }
   if (n === 0) {
-    return { kind: "nodata", label: "No Turtles", notes: "Add turtles in the Turtles tab before submitting." };
+    return {
+      kind: "complete",
+      label: "Zero turtles",
+      notes: "No turtles were seen — absence is data. Submitting writes one row with all the survey metadata and \"-\" in every turtle field.",
+    };
   }
   const incomplete = state.draft.turtles.filter((t) => turtleMissingFields(t).length > 0).length;
   if (incomplete === 0) {
@@ -962,7 +969,7 @@ function buildSchema() {
 function buildRows(draft) {
   const submittedAt = new Date().toISOString();
   const numTurtles = draft.turtles.length;
-  return draft.turtles.map((t, i) => ({
+  const baseMeta = {
     surveyId: draft.id,
     submittedAt,
     surveyLeader: draft.metadata.surveyLeader || "",
@@ -971,6 +978,31 @@ function buildRows(draft) {
     date: draft.metadata.date || "",
     site: draft.metadata.site || "",
     surveyDuration: draft.metadata.surveyDuration || "",
+  };
+
+  // Zero-turtle survey: absence is data. Emit a single row with metadata
+  // intact and every turtle-specific field set to "-" as an explicit "no
+  // sighting" placeholder. numberOfTurtlesSeen reads 0 so the Sheet column
+  // unambiguously records the null result.
+  if (numTurtles === 0) {
+    return [{
+      ...baseMeta,
+      numberOfTurtlesSeen: 0,
+      turtleNumber: "-",
+      timeSeen: "-",
+      depthObserved: "-",
+      species: "-",
+      speciesOther: "-",
+      behaviour: "-",
+      size: "-",
+      sex: "-",
+      turtleName: "-",
+      markings: "-",
+    }];
+  }
+
+  return draft.turtles.map((t, i) => ({
+    ...baseMeta,
     numberOfTurtlesSeen: numTurtles,
     turtleNumber: i + 1,
     timeSeen: t.timeSeen || "",
@@ -995,16 +1027,17 @@ async function submitSurvey() {
     toast("This survey has already been submitted.");
     return;
   }
-  if (state.draft.turtles.length === 0) {
-    toast("Add at least one turtle before submitting.");
-    return;
-  }
-  const incomplete = state.draft.turtles
-    .map((t, i) => ({ idx: i + 1, missing: turtleMissingFields(t) }))
-    .filter((x) => x.missing.length > 0);
-  if (incomplete.length > 0) {
-    toast(`Turtle ${incomplete[0].idx} is missing: ${incomplete[0].missing.join(", ")}. Fill all required fields before submitting.`);
-    return;
+  // Zero turtles is a valid submission ("absence is data") — buildRows
+  // will emit a single placeholder row. Only block when there ARE turtles
+  // logged but some are missing required fields.
+  if (state.draft.turtles.length > 0) {
+    const incomplete = state.draft.turtles
+      .map((t, i) => ({ idx: i + 1, missing: turtleMissingFields(t) }))
+      .filter((x) => x.missing.length > 0);
+    if (incomplete.length > 0) {
+      toast(`Turtle ${incomplete[0].idx} is missing: ${incomplete[0].missing.join(", ")}. Fill all required fields before submitting.`);
+      return;
+    }
   }
 
   const rows = buildRows(state.draft);
