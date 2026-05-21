@@ -23,18 +23,21 @@ const SEX_OPTIONS = [
   { code: "U", label: "Unidentified" },
 ];
 
-// Seeded dive sites — reused from BTC EMP Uploader.
+// Seeded dive sites — turtle survey locations around Koh Tao.
+// Surveyors can append device-local custom sites via the "+ Add site" button;
+// this list is the shared baseline that ships with the app.
 const DEFAULT_DIVE_SITES = [
-  "Twins",
-  "Mango Bay",
-  "Junkyard",
+  "Sai Nuan (Banana Rock)",
+  "Sai Thong (Leo Beach)",
+  "Sai Daeng",
   "Aow Leuk",
+  "Hin Wong Bay",
+  "Shark Bay",
   "Tanote Bay",
-  "BTD Reef",
-  "Tao Tong",
+  "June Juea",
   "Freedom Beach",
-  "Laem Thian",
-  "Japanese Gardens",
+  "Tao Tong",
+  "Chalok Bay",
 ];
 
 /* =========================================================================
@@ -209,121 +212,102 @@ function go(screen) {
 }
 
 /* =========================================================================
- *  DIVE SITE PICKER (same UX as EMP Uploader)
+ *  SITE PICKER — strict <select> dropdown + "+ Add site" affordance.
+ *
+ *  Surveyors can only enter sites that are in the dropdown. To register a
+ *  new site, they must use the explicit "+ Add new site" button: this saves
+ *  the new name to device-local storage and inserts it into the dropdown.
+ *  Free text entry into a custom field is intentionally not supported, to
+ *  keep the Sheet's "site" column clean and analysable.
  * ========================================================================= */
 
-function attachDiveSitePicker(input) {
-  const wrap = document.createElement("div");
-  wrap.className = "dive-site-wrap";
-  input.parentNode.insertBefore(wrap, input);
-  wrap.appendChild(input);
+function attachDiveSitePicker(select, initialValue) {
+  if (!select || select.tagName !== "SELECT") return;
 
-  const datalistId = "dive-sites-" + Math.random().toString(36).slice(2, 8);
-  const datalist = document.createElement("datalist");
-  datalist.id = datalistId;
-  input.setAttribute("list", datalistId);
-  wrap.appendChild(datalist);
-
-  function refreshDatalist() {
-    datalist.innerHTML = "";
-    getAllDiveSites().forEach((s) => {
-      const opt = document.createElement("option");
-      opt.value = s;
-      datalist.appendChild(opt);
-    });
+  function rebuildOptions(selectedValue) {
+    // Preserve the leading placeholder ("— Choose a site —") from the
+    // template and rebuild the data options below it. If the desired value
+    // isn't in the canonical list (e.g. a legacy draft), we re-insert it
+    // anyway so the surveyor sees their stored choice rather than a blank.
+    const placeholder = select.querySelector('option[value=""]');
+    select.innerHTML = "";
+    if (placeholder) select.appendChild(placeholder);
+    const sites = getAllDiveSites();
+    if (selectedValue && !sites.includes(selectedValue)) sites.push(selectedValue);
+    sites
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+      .forEach((s) => {
+        const opt = document.createElement("option");
+        opt.value = s;
+        opt.textContent = s;
+        select.appendChild(opt);
+      });
+    if (selectedValue) select.value = selectedValue;
   }
-  refreshDatalist();
+  rebuildOptions(initialValue || "");
 
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.className = "dive-site-toggle";
-  toggle.textContent = "+";
-  toggle.title = "Pick from list";
-  wrap.appendChild(toggle);
+  // Render the "+ Add new site" affordance directly below the select.
+  // The site <select> sits inside a <label> in both Setup and Info templates,
+  // so we append the add-row to that label so it stacks naturally with the
+  // form's gap spacing.
+  const host = select.closest("label") || select.parentNode;
+  const addRow = document.createElement("div");
+  addRow.className = "dive-site-add-row";
 
-  const panel = document.createElement("div");
-  panel.className = "dive-site-panel hidden";
-  wrap.appendChild(panel);
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "dive-site-add";
+  addBtn.textContent = "+ Add new site";
 
-  function setValue(val) {
-    input.value = val;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+  const addForm = document.createElement("div");
+  addForm.className = "dive-site-add-form hidden";
+  const newInput = document.createElement("input");
+  newInput.type = "text";
+  newInput.maxLength = 60;
+  newInput.placeholder = "New dive site name";
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "primary";
+  saveBtn.textContent = "Save";
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "ghost";
+  cancelBtn.textContent = "Cancel";
+  addForm.append(newInput, saveBtn, cancelBtn);
+
+  addBtn.addEventListener("click", () => {
+    addBtn.classList.add("hidden");
+    addForm.classList.remove("hidden");
+    newInput.focus();
+  });
+  cancelBtn.addEventListener("click", () => {
+    addForm.classList.add("hidden");
+    addBtn.classList.remove("hidden");
+    newInput.value = "";
+  });
+  function commitNew() {
+    const name = newInput.value.trim();
+    if (!name) return;
+    const added = addCustomSite(name);
+    rebuildOptions(name);
+    // Fire both events: 'input' for the Info screen's persist() listener,
+    // 'change' for any future code listening for canonical change events.
+    select.dispatchEvent(new Event("input", { bubbles: true }));
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    if (added) toast(`Added "${name}" to site list.`);
+    else toast(`"${name}" is already in the site list — selected.`);
+    addForm.classList.add("hidden");
+    addBtn.classList.remove("hidden");
+    newInput.value = "";
   }
+  saveBtn.addEventListener("click", commitNew);
+  newInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); commitNew(); }
+    if (e.key === "Escape") { cancelBtn.click(); }
+  });
 
-  function renderPanel() {
-    panel.innerHTML = "";
-    getAllDiveSites().forEach((s) => {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "dive-site-item";
-      item.textContent = s;
-      item.addEventListener("click", () => { setValue(s); closePanel(); });
-      panel.appendChild(item);
-    });
-
-    const addRow = document.createElement("div");
-    addRow.className = "dive-site-add-row";
-
-    const addBtn = document.createElement("button");
-    addBtn.type = "button";
-    addBtn.className = "dive-site-add";
-    addBtn.textContent = "+ Add new site";
-
-    const addForm = document.createElement("div");
-    addForm.className = "dive-site-add-form hidden";
-    const newInput = document.createElement("input");
-    newInput.type = "text";
-    newInput.maxLength = 40;
-    newInput.placeholder = "New dive site name";
-    const saveBtn = document.createElement("button");
-    saveBtn.type = "button";
-    saveBtn.className = "primary";
-    saveBtn.textContent = "Save";
-    const cancelBtn = document.createElement("button");
-    cancelBtn.type = "button";
-    cancelBtn.className = "ghost";
-    cancelBtn.textContent = "Cancel";
-    addForm.append(newInput, saveBtn, cancelBtn);
-
-    addBtn.addEventListener("click", () => {
-      addBtn.classList.add("hidden");
-      addForm.classList.remove("hidden");
-      newInput.focus();
-    });
-    cancelBtn.addEventListener("click", () => {
-      addForm.classList.add("hidden");
-      addBtn.classList.remove("hidden");
-      newInput.value = "";
-    });
-    function commitNew() {
-      const name = newInput.value.trim();
-      if (!name) return;
-      const added = addCustomSite(name);
-      refreshDatalist();
-      setValue(name);
-      if (added) toast(`Added "${name}" to dive sites.`);
-      renderPanel();
-      closePanel();
-    }
-    saveBtn.addEventListener("click", commitNew);
-    newInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); commitNew(); }
-      if (e.key === "Escape") { cancelBtn.click(); }
-    });
-
-    addRow.append(addBtn, addForm);
-    panel.appendChild(addRow);
-  }
-  renderPanel();
-
-  function openPanel() { panel.classList.remove("hidden"); }
-  function closePanel() { panel.classList.add("hidden"); }
-  function togglePanel() { panel.classList.toggle("hidden"); }
-
-  toggle.addEventListener("click", (e) => { e.stopPropagation(); togglePanel(); });
-
-  const outsideHandler = (e) => { if (!wrap.contains(e.target)) closePanel(); };
-  document.addEventListener("click", outsideHandler);
+  addRow.append(addBtn, addForm);
+  host.appendChild(addRow);
 }
 
 /* =========================================================================
@@ -392,7 +376,6 @@ function renderSetup() {
     if (m.uploadedBy) form.querySelector('[name="uploadedBy"]').value = m.uploadedBy;
     if (m.numberOfSurveyors) form.querySelector('[name="numberOfSurveyors"]').value = m.numberOfSurveyors;
     if (m.date) form.querySelector('[name="date"]').value = m.date;
-    if (m.site) form.querySelector('[name="site"]').value = m.site;
     resumeBtn.addEventListener("click", () => {
       state.draft = existing;
       saveDraft();
@@ -402,7 +385,9 @@ function renderSetup() {
 
   if (!form.date.value) form.date.value = new Date().toISOString().slice(0, 10);
 
-  attachDiveSitePicker(form.querySelector('[name="site"]'));
+  // Attach the site picker AFTER existing-value restore so the picker can
+  // populate options + select the restored value in the right order.
+  attachDiveSitePicker(form.querySelector('[name="site"]'), existing?.metadata?.site || "");
 
   const duration = attachDurationPicker(form);
   if (duration && existing) duration.setValueFromStored(existing.metadata?.surveyDuration || "");
@@ -444,9 +429,11 @@ function renderInfo() {
   form.querySelector('[name="uploadedBy"]').value = m.uploadedBy || "";
   form.querySelector('[name="numberOfSurveyors"]').value = m.numberOfSurveyors || "";
   form.querySelector('[name="date"]').value = m.date || "";
-  form.querySelector('[name="site"]').value = m.site || "";
 
-  attachDiveSitePicker(form.querySelector('[name="site"]'));
+  // Site picker populates the select's options + selects the stored value
+  // in the right order. Picker fires `change` events that the persist()
+  // handler below catches via the listener attached after this block.
+  attachDiveSitePicker(form.querySelector('[name="site"]'), m.site || "");
 
   let savedTimer = null;
   function flashSaved() {

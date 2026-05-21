@@ -252,9 +252,7 @@ input:focus, select:focus, textarea:focus {
 }
 .dive-site-item:hover { background: var(--surface-2); color: var(--accent); }
 .dive-site-add-row {
-  padding: 6px;
-  border-top: 2px solid var(--line);
-  background: var(--surface-2);
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -265,10 +263,10 @@ input:focus, select:focus, textarea:focus {
   color: var(--accent-2);
   font-weight: 500;
   font-size: 0.85rem;
-  min-height: 32px;
+  min-height: 36px;
   width: 100%;
 }
-.dive-site-add:hover { background: rgba(42, 122, 138, 0.08); }
+.dive-site-add:hover { background: rgba(79, 166, 151, 0.10); }
 .dive-site-add-form {
   display: flex;
   gap: 6px;
