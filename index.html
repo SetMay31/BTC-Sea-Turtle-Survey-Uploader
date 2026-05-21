@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#2d7a72" />
+  <title>Sea Turtle Survey — Data Uploader</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="app-icon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="app-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-row">
+      <img class="brand-mark" src="logo.png" alt="Black Turtle Conservation"
+           onerror="if(!this.dataset.t){this.dataset.t='1';this.src='logo.svg'}else{this.onerror=null;this.src='icon.svg'}" />
+      <div class="brand-text">
+        <span class="brand-line-1">Black Turtle Conservation</span>
+        <span class="brand-line-2">Sea Turtle Survey Uploader</span>
+      </div>
+      <div class="topbar-status">
+        <span id="net-status" class="net-dot" title="Online status"></span>
+        <span id="queue-count" class="queue-pill" title="Pending sync">0</span>
+      </div>
+    </div>
+    <nav id="survey-tabs" class="tabs hidden">
+      <button class="tab" data-screen="info">Info</button>
+      <button class="tab" data-screen="turtles">Turtles</button>
+      <button class="tab" data-screen="review">Review</button>
+    </nav>
+  </header>
+
+  <main id="app"></main>
+
+  <!-- Setup screen template -->
+  <template id="tpl-setup">
+    <section class="screen">
+      <h2>New Survey</h2>
+      <p class="muted">Enter the shared metadata for this snorkel survey. It will be attached to every turtle you log.</p>
+      <form id="setup-form" class="form-stack" autocomplete="off">
+        <label>Survey Leader
+          <input name="surveyLeader" type="text" required />
+        </label>
+        <label>Uploaded By
+          <input name="uploadedBy" type="text" required />
+        </label>
+        <label>Number of Surveyors
+          <input name="numberOfSurveyors" type="number" min="1" step="1" inputmode="numeric" required />
+        </label>
+        <label>Date
+          <input name="date" type="date" required />
+        </label>
+        <label>Site
+          <input name="site" type="text" required autocomplete="off" />
+        </label>
+        <label>Survey Duration
+          <div class="duration-row">
+            <select name="durationHours" required>
+              <option value="">Hours</option>
+            </select>
+            <select name="durationMinutes" required>
+              <option value="">Minutes</option>
+            </select>
+          </div>
+        </label>
+        <button type="submit" class="primary">Start logging turtles</button>
+        <button type="button" id="resume-btn" class="ghost hidden">Resume saved draft</button>
+      </form>
+    </section>
+  </template>
+
+  <!-- Survey Info template — edit shared metadata mid-survey -->
+  <template id="tpl-info">
+    <section class="screen">
+      <h2>Survey Info</h2>
+      <p class="muted">Edit the shared metadata for this survey. Changes apply to all turtles in this draft and to any future submissions. Turtles already pushed to the Sheet keep their original metadata.</p>
+      <form id="info-form" class="form-stack" autocomplete="off">
+        <label>Survey Leader
+          <input name="surveyLeader" type="text" />
+        </label>
+        <label>Uploaded By
+          <input name="uploadedBy" type="text" />
+        </label>
+        <label>Number of Surveyors
+          <input name="numberOfSurveyors" type="number" min="1" step="1" inputmode="numeric" />
+        </label>
+        <label>Date
+          <input name="date" type="date" />
+        </label>
+        <label>Site
+          <input name="site" type="text" autocomplete="off" />
+        </label>
+        <label>Survey Duration
+          <div class="duration-row">
+            <select name="durationHours">
+              <option value="">Hours</option>
+            </select>
+            <select name="durationMinutes">
+              <option value="">Minutes</option>
+            </select>
+          </div>
+        </label>
+      </form>
+      <p class="muted small info-saved" id="info-saved">Changes save automatically.</p>
+    </section>
+  </template>
+
+  <!-- Turtle list / per-turtle editor template -->
+  <template id="tpl-turtles">
+    <section class="screen">
+      <div class="screen-head">
+        <h2>Turtles This Survey</h2>
+        <div class="progress-pill" id="turtle-count">0 turtles</div>
+      </div>
+      <p class="muted small">Add one entry per turtle spotted. Tap a card to expand and edit its details. Order = sighting order; auto-numbered. Fields marked <strong>*</strong> are required before you can submit.</p>
+
+      <div id="turtle-list" class="turtle-list"></div>
+
+      <button id="add-turtle" class="primary add-turtle-btn">+ Add a turtle</button>
+    </section>
+  </template>
+
+  <!-- Review/submit template -->
+  <template id="tpl-review">
+    <section class="screen">
+      <h2>Review &amp; Submit</h2>
+      <div id="review-summary" class="review-summary"></div>
+
+      <div class="review-actions all-actions">
+        <button id="submit-all" class="primary submit-all-full">SUBMIT SURVEY</button>
+        <div class="review-secondary-row">
+          <button id="download-csv" class="ghost">Download CSV</button>
+          <button id="copy-tsv" class="ghost">Copy as TSV</button>
+          <button id="export-json" class="ghost">Export JSON</button>
+        </div>
+        <button id="discard-all" class="danger reset-btn">Reset All Data</button>
+      </div>
+
+      <div id="submit-result" class="submit-result"></div>
+    </section>
+  </template>
+
+  <!-- Pending sync queue modal -->
+  <template id="tpl-queue-modal">
+    <div class="modal-backdrop">
+      <div class="modal queue-modal">
+        <h3>Pending Sync Queue</h3>
+        <p class="muted small" id="queue-empty-hint">Nothing pending.</p>
+        <div class="queue-list" id="queue-list"></div>
+        <p class="muted small" id="queue-sync-hint"></p>
+        <div class="modal-actions">
+          <button class="ghost" data-action="close">Close</button>
+          <button class="primary" data-action="retry" id="queue-retry-btn">Retry now</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Settings (Sheets sync URL) drawer -->
+  <button id="settings-btn" class="settings-btn" title="Settings">⚙</button>
+  <template id="tpl-settings">
+    <div class="modal-backdrop">
+      <div class="modal">
+        <h3>Settings</h3>
+        <label>Google Apps Script Web App URL
+          <input id="sync-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+          <small class="muted">Leave blank to disable Sheets sync — exports still work.</small>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="auto-sync" /> Auto-sync when online
+        </label>
+        <div class="modal-actions">
+          <button class="ghost" data-action="cancel">Close</button>
+          <button class="primary" data-action="save">Save</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
