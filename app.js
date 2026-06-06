@@ -10,6 +10,15 @@
 const DURATION_HOURS = [0, 1, 2, 3, 4, 5];
 const DURATION_MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
+// Tourist headcount buckets — rough estimate of how busy the site was.
+const TOURISTS_OPTIONS = [
+  "Under 25",
+  "25-50",
+  "50-100",
+  "100-150",
+  "150+",
+];
+
 const SPECIES_OPTIONS = ["Green", "Hawksbill", "Other"];
 const BEHAVIOUR_OPTIONS = [
   { code: "F", label: "Feeding" },
@@ -87,6 +96,9 @@ function newDraft() {
       date: "",
       site: "",
       surveyDuration: "",
+      numberOfLargeBoatsAtSite: "",
+      numberOfSmallBoatsAtSite: "",
+      numberOfTouristsAtSite: "",
     },
     turtles: [],
     submitted: false,
@@ -310,6 +322,16 @@ function attachDiveSitePicker(select, initialValue) {
   host.appendChild(addRow);
 }
 
+function populateTourists(select, currentValue) {
+  TOURISTS_OPTIONS.forEach((v) => {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = v;
+    select.appendChild(opt);
+  });
+  if (currentValue) select.value = currentValue;
+}
+
 /* =========================================================================
  *  DURATION DROPDOWNS (Hours + Minutes)
  *  Canonical storage is the "HH:MM" string. The two selects are pure UI.
@@ -376,6 +398,8 @@ function renderSetup() {
     if (m.uploadedBy) form.querySelector('[name="uploadedBy"]').value = m.uploadedBy;
     if (m.numberOfSurveyors) form.querySelector('[name="numberOfSurveyors"]').value = m.numberOfSurveyors;
     if (m.date) form.querySelector('[name="date"]').value = m.date;
+    if (m.numberOfLargeBoatsAtSite) form.querySelector('[name="numberOfLargeBoatsAtSite"]').value = m.numberOfLargeBoatsAtSite;
+    if (m.numberOfSmallBoatsAtSite) form.querySelector('[name="numberOfSmallBoatsAtSite"]').value = m.numberOfSmallBoatsAtSite;
     resumeBtn.addEventListener("click", () => {
       state.draft = existing;
       saveDraft();
@@ -392,6 +416,8 @@ function renderSetup() {
   const duration = attachDurationPicker(form);
   if (duration && existing) duration.setValueFromStored(existing.metadata?.surveyDuration || "");
 
+  populateTourists(form.querySelector('[name="numberOfTouristsAtSite"]'), existing?.metadata?.numberOfTouristsAtSite || "");
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const fd = new FormData(form);
@@ -402,9 +428,16 @@ function renderSetup() {
       date: (fd.get("date") || "").toString(),
       site: (fd.get("site") || "").toString().trim(),
       surveyDuration: duration ? duration.readValue() : "",
+      numberOfLargeBoatsAtSite: (fd.get("numberOfLargeBoatsAtSite") || "").toString().trim(),
+      numberOfSmallBoatsAtSite: (fd.get("numberOfSmallBoatsAtSite") || "").toString().trim(),
+      numberOfTouristsAtSite: (fd.get("numberOfTouristsAtSite") || "").toString(),
     };
     if (!meta.surveyLeader || !meta.uploadedBy || !meta.numberOfSurveyors || !meta.date || !meta.site || !meta.surveyDuration) {
       toast("Fill all metadata fields, including hours and minutes.");
+      return;
+    }
+    if (meta.numberOfLargeBoatsAtSite === "" || meta.numberOfSmallBoatsAtSite === "" || !meta.numberOfTouristsAtSite) {
+      toast("Fill in boats and tourist headcount before starting.");
       return;
     }
     if (!state.draft) state.draft = newDraft();
@@ -429,11 +462,14 @@ function renderInfo() {
   form.querySelector('[name="uploadedBy"]').value = m.uploadedBy || "";
   form.querySelector('[name="numberOfSurveyors"]').value = m.numberOfSurveyors || "";
   form.querySelector('[name="date"]').value = m.date || "";
+  form.querySelector('[name="numberOfLargeBoatsAtSite"]').value = m.numberOfLargeBoatsAtSite || "";
+  form.querySelector('[name="numberOfSmallBoatsAtSite"]').value = m.numberOfSmallBoatsAtSite || "";
 
   // Site picker populates the select's options + selects the stored value
   // in the right order. Picker fires `change` events that the persist()
   // handler below catches via the listener attached after this block.
   attachDiveSitePicker(form.querySelector('[name="site"]'), m.site || "");
+  populateTourists(form.querySelector('[name="numberOfTouristsAtSite"]'), m.numberOfTouristsAtSite || "");
 
   let savedTimer = null;
   function flashSaved() {
@@ -455,6 +491,9 @@ function renderInfo() {
     state.draft.metadata.date = (fd.get("date") || "").toString();
     state.draft.metadata.site = (fd.get("site") || "").toString().trim();
     state.draft.metadata.surveyDuration = duration ? duration.readValue() : "";
+    state.draft.metadata.numberOfLargeBoatsAtSite = (fd.get("numberOfLargeBoatsAtSite") || "").toString().trim();
+    state.draft.metadata.numberOfSmallBoatsAtSite = (fd.get("numberOfSmallBoatsAtSite") || "").toString().trim();
+    state.draft.metadata.numberOfTouristsAtSite = (fd.get("numberOfTouristsAtSite") || "").toString();
     saveDraft();
     flashSaved();
   }
@@ -462,11 +501,12 @@ function renderInfo() {
   const duration = attachDurationPicker(form, persist);
   if (duration) duration.setValueFromStored(m.surveyDuration || "");
 
-  ["surveyLeader", "uploadedBy", "numberOfSurveyors", "site"].forEach((n) => {
+  ["surveyLeader", "uploadedBy", "numberOfSurveyors", "site", "numberOfLargeBoatsAtSite", "numberOfSmallBoatsAtSite"].forEach((n) => {
     const el = form.querySelector(`[name="${n}"]`);
     if (el) el.addEventListener("input", persist);
   });
   form.querySelector('[name="date"]').addEventListener("change", persist);
+  form.querySelector('[name="numberOfTouristsAtSite"]').addEventListener("change", persist);
 }
 
 /* =========================================================================
@@ -792,6 +832,9 @@ function renderReview() {
     ["Date", meta.date],
     ["Site", meta.site],
     ["Survey Duration", meta.surveyDuration],
+    ["Number of Large Boats At Site", meta.numberOfLargeBoatsAtSite],
+    ["Number of Small Boats At Site", meta.numberOfSmallBoatsAtSite],
+    ["Number of Tourists At Site", meta.numberOfTouristsAtSite],
     ["Number of Turtles Seen", String(state.draft.turtles.length)],
   ].forEach(([k, v]) => {
     const dt = document.createElement("dt"); dt.textContent = k;
@@ -936,6 +979,9 @@ function buildSchema() {
       "date",
       "site",
       "surveyDuration",
+      "numberOfLargeBoatsAtSite",
+      "numberOfSmallBoatsAtSite",
+      "numberOfTouristsAtSite",
       "numberOfTurtlesSeen",
     ],
     turtle: [
@@ -965,6 +1011,9 @@ function buildRows(draft) {
     date: draft.metadata.date || "",
     site: draft.metadata.site || "",
     surveyDuration: draft.metadata.surveyDuration || "",
+    numberOfLargeBoatsAtSite: draft.metadata.numberOfLargeBoatsAtSite || "",
+    numberOfSmallBoatsAtSite: draft.metadata.numberOfSmallBoatsAtSite || "",
+    numberOfTouristsAtSite: draft.metadata.numberOfTouristsAtSite || "",
   };
 
   // Zero-turtle survey: absence is data. Emit a single row with metadata

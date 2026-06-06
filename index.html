@@ -69,6 +69,19 @@
             </select>
           </div>
         </label>
+        <div class="field-row">
+          <label>Number of Large Boats At Site
+            <input name="numberOfLargeBoatsAtSite" type="number" min="0" step="1" inputmode="numeric" required />
+          </label>
+          <label>Number of Small Boats At Site
+            <input name="numberOfSmallBoatsAtSite" type="number" min="0" step="1" inputmode="numeric" required />
+          </label>
+        </div>
+        <label>Number of Tourists At Site
+          <select name="numberOfTouristsAtSite" required>
+            <option value="">Select…</option>
+          </select>
+        </label>
         <button type="submit" class="primary">Start logging turtles</button>
         <button type="button" id="resume-btn" class="ghost hidden">Resume saved draft</button>
       </form>
@@ -107,6 +120,19 @@
               <option value="">Minutes</option>
             </select>
           </div>
+        </label>
+        <div class="field-row">
+          <label>Number of Large Boats At Site
+            <input name="numberOfLargeBoatsAtSite" type="number" min="0" step="1" inputmode="numeric" />
+          </label>
+          <label>Number of Small Boats At Site
+            <input name="numberOfSmallBoatsAtSite" type="number" min="0" step="1" inputmode="numeric" />
+          </label>
+        </div>
+        <label>Number of Tourists At Site
+          <select name="numberOfTouristsAtSite">
+            <option value="">Select…</option>
+          </select>
         </label>
       </form>
       <p class="muted small info-saved" id="info-saved">Changes save automatically.</p>

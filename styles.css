@@ -198,6 +198,17 @@ input:focus, select:focus, textarea:focus {
 }
 .duration-row select { min-height: var(--tap); }
 
+/* Two-up field row — used for the Large Boats + Small Boats pair side-by-side.
+   Stacks on narrow screens so number inputs don't get cramped. */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 480px) {
+  .field-row { grid-template-columns: 1fr; }
+}
+
 /* Dive Site picker — text input + "+" toggle + dropdown */
 .dive-site-wrap {
   position: relative;

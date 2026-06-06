@@ -143,6 +143,9 @@ const EMBEDDED_SCHEMA = {
     "date",
     "site",
     "surveyDuration",
+    "numberOfLargeBoatsAtSite",
+    "numberOfSmallBoatsAtSite",
+    "numberOfTouristsAtSite",
     "numberOfTurtlesSeen",
   ],
   turtle: [
