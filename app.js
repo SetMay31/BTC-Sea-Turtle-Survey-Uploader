@@ -976,7 +976,9 @@ function buildSchema() {
       "surveyLeader",
       "uploadedBy",
       "numberOfSurveyors",
-      "date",
+      "dateDay",
+      "dateMonth",
+      "dateYear",
       "site",
       "surveyDuration",
       "numberOfLargeBoatsAtSite",
@@ -999,16 +1001,30 @@ function buildSchema() {
   };
 }
 
+// Split an ISO date ("YYYY-MM-DD") from the native <input type="date"> into
+// three discrete columns. Keeps leading zeros (DD = "06", not "6") so each
+// column reads cleanly in the Sheet without further formatting. Empty input
+// returns all-empty parts.
+function splitDate(iso) {
+  if (typeof iso !== "string") return { dateDay: "", dateMonth: "", dateYear: "" };
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return { dateDay: "", dateMonth: "", dateYear: "" };
+  return { dateYear: m[1], dateMonth: m[2], dateDay: m[3] };
+}
+
 function buildRows(draft) {
   const submittedAt = new Date().toISOString();
   const numTurtles = draft.turtles.length;
+  const dateParts = splitDate(draft.metadata.date || "");
   const baseMeta = {
     surveyId: draft.id,
     submittedAt,
     surveyLeader: draft.metadata.surveyLeader || "",
     uploadedBy: draft.metadata.uploadedBy || "",
     numberOfSurveyors: draft.metadata.numberOfSurveyors || "",
-    date: draft.metadata.date || "",
+    dateDay: dateParts.dateDay,
+    dateMonth: dateParts.dateMonth,
+    dateYear: dateParts.dateYear,
     site: draft.metadata.site || "",
     surveyDuration: draft.metadata.surveyDuration || "",
     numberOfLargeBoatsAtSite: draft.metadata.numberOfLargeBoatsAtSite || "",
