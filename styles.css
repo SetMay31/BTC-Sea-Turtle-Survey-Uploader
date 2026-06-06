@@ -209,6 +209,16 @@ input:focus, select:focus, textarea:focus {
   .field-row { grid-template-columns: 1fr; }
 }
 
+/* Sub-label hint shown immediately under a field title. Tightens the default
+   label gap so the hint reads as part of the heading rather than a separate
+   line. Italic + smaller + muted keeps it visually subordinate. */
+.field-hint {
+  margin-top: -4px;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 0.78rem;
+}
+
 /* Dive Site picker — text input + "+" toggle + dropdown */
 .dive-site-wrap {
   position: relative;
